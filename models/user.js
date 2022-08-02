@@ -32,5 +32,8 @@ userSchema.pre( "save", async function (next){
   }
 next();
 });
-
+userSchema.methods.comparePassword=async function(password){            //to compare the old password to the new one
+  const result =await bcrypt.compare(password,this.password)  //token : the actual data coming from our user
+  return result;
+  }
 module.exports=mongoose.model("User",userSchema);

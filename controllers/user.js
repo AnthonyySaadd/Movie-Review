@@ -1,8 +1,10 @@
+
 const User=require("../models/user");
-const EmailVerificationToken=require("../models/emailVerificationToken");
+const EmailVerificationToken=require("../models/emailVerificationToken"); 
+const PasswordResetToken=require("../models/passwordResetToken");
 const {isValidObjectId }=require("mongoose");
 const { generateOTP, generateMailTransporter } = require("../utils/mail");
-const { sendError } = require("../utils/helper");
+const { sendError, generateRandomByte } = require("../utils/helper");
 exports.create =  async (req,res) => {
   const {name, email ,password}=req.body;
 
@@ -54,7 +56,7 @@ if(user.isVerified) return sendError(res,"user is already verified")    ;
 
 const token=await EmailVerificationToken.findOne({owner:userId});
 if(!token) return  sendError(res,"token not found ")   ;            
-const isMatched =await token.compaireToken(OTP)  //otp coming from our user 
+const isMatched =await token.compareToken(OTP)  //otp coming from our user 
 if (!isMatched) return     sendError(res,"Please submit a valid otp !")   ;     
 user.isVerified=true;
 await user.save();
@@ -106,15 +108,61 @@ transport.sendMail({
 res.json({message:"New OTP has been sent to your email !"});
 
 
-
-
-
-
-
-
-
-
-
-
-
 }
+
+exports.forgetPassword=async (req,res)=>{
+const { email }=req.body;
+if(!email) return sendError(res,"email is missing") ;
+const user =await User.findOne({email});
+if(!user) return sendError(res,"User not found",404);
+const alreadyHasToken=await PasswordResetToken.findOne({owner:user._id});
+if(alreadyHasToken) return sendError(res,"only after one hour you can request for another token!"); 
+
+const token= await generateRandomByte();
+
+const newPasswordResetToken=  new PasswordResetToken({
+  owner:user._id,
+  token:token
+});
+await newPasswordResetToken.save();
+
+const resetPasswordUrl=`http://localhost:3000/reset-password?token=${token}&id=${user._id}`;
+
+var transport = generateMailTransporter();
+
+transport.sendMail({
+  from:"security@reviewapp.com",
+  to:user.email,
+  subject:"reset password link",
+  html: `
+  <p>Click Here to reset password</p>
+ <a href="${resetPasswordUrl}">change password </a>
+  `
+});
+res.json({message:"Link sent to your email!"});
+};
+exports.sendResetPasswordTokenStatus =(req,res)=>{
+  res.json({valid:true});
+}
+exports.resetPassword=async(req,res)=>{
+  const {newPassword,userId}=req.body;
+const user=await User.findById(userId)
+const matched =await user.comparePassword(newPassword);
+if(matched) return sendError(res, "The new password must be different from the old one!");
+user.password=newPassword;
+await user.save();      //befor the save our userSchema.pre will hash the password
+await PasswordResetToken.findByIdAndDelete(req.resetToken._id);
+
+const  transport = generateMailTransporter();
+transport.sendMail({
+  from:"security@reviewapp.com",
+  to:user.email,
+  subject:"Password Reset Successfully!",
+  html: `
+  <h1>Passsword Reset Successfully!</h1>
+  <p> Now you can use your new password</p>
+  `
+});
+res.json({message:"password reset successfully,now you can use your new password"});
+
+};
