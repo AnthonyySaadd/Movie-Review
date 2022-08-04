@@ -1,5 +1,6 @@
 
 const User=require("../models/user");
+const jwt=require("jsonwebtoken");
 const EmailVerificationToken=require("../models/emailVerificationToken"); 
 const PasswordResetToken=require("../models/passwordResetToken");
 const {isValidObjectId }=require("mongoose");
@@ -166,3 +167,13 @@ transport.sendMail({
 res.json({message:"password reset successfully,now you can use your new password"});
 
 };
+exports.signIn=async (req,res)=>{
+  const {email,password}=req.body;
+  const user=await User.findOne({email});
+if(!user) return sendError(res,"Email/Password missmatch");
+const matched=await user.comparePassword(password);
+if(!matched) return sendError(res,"Email/Password missmatch");
+const {_id,name}=user;
+const jwtToken=jwt.sign({userId:_id},process.env.JWT_SECRET);
+res.json({user:{id:_id,name,email,token:jwtToken}});
+}

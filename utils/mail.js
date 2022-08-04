@@ -13,8 +13,8 @@ exports.generateMailTransporter= () =>nodemailer.createTransport({
     host: "smtp.mailtrap.io",
     port: 2525,
     auth: {
-      user: "ba600ffd4a1fa9",
-      pass: "fd981f34b0e6a3"
+      user: process.env.MAIL_TRAP_USER,
+      pass: process.env.MAIL_TRAP_PASS
     }
   });
 
